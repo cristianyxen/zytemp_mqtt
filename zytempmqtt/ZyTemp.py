@@ -54,6 +54,8 @@ class ZyTemp():
         if not len(self.cfg.discovery_prefix):
             return
 
+        self.m.run(0.1)
+
         for meas in ZyTemp.MEASUREMENTS.values():
             id = os.path.basename(self.cfg.mqtt_topic)
             config_content = {
@@ -81,7 +83,6 @@ class ZyTemp():
                 retain=True
             )
 
-        self.m.run(0.1)
 
     def update(self, key, value):
         if self.values[key] == value:
