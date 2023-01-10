@@ -13,6 +13,9 @@ CO2_USB_PRD = 'USB-zyTemp'
 # Ignore first 5 measurements during self-calibration after power-up
 IGNORE_N_MEASUREMENTS = 5
 
+# key used to decrypt
+KEY = [0xc4, 0xc6, 0xc0, 0x92, 0x40, 0x23, 0xdc, 0x96]
+
 l = log.getLogger('zytemp')
 
 
@@ -106,8 +109,8 @@ class ZyTemp():
                 return
 
             if r[4] != 0x0d:
-                l.log(log.DEBUG, f'Unexpected data from device')
-                continue
+                l.log(log.DEBUG, f'Encrypted data from device')
+                r = decrypt(KEY, r)
 
             if r[3] != sum(r[0:3]) & 0xff:
                 l.log(log.ERROR, f'Checksum error')
@@ -164,3 +167,30 @@ def get_hiddev():
     h = hid.device()
     h.open_path(path)
     return h
+
+# taken from https://hackaday.io/project/5301-reverse-engineering-a-low-cost-usb-co-monitor/log/17909-all-your-base-are-belong-to-us
+def decrypt(key,  data):
+    cstate = [0x48,  0x74,  0x65,  0x6D,  0x70,  0x39,  0x39,  0x65]
+    shuffle = [2, 4, 0, 7, 1, 6, 5, 3]
+
+    phase1 = [0] * 8
+    for i, o in enumerate(shuffle):
+        phase1[o] = data[i]
+
+    phase2 = [0] * 8
+    for i in range(8):
+        phase2[i] = phase1[i] ^ key[i]
+
+    phase3 = [0] * 8
+    for i in range(8):
+        phase3[i] = ( (phase2[i] >> 3) | (phase2[ (i-1+8)%8 ] << 5) ) & 0xff
+
+    ctmp = [0] * 8
+    for i in range(8):
+        ctmp[i] = ( (cstate[i] >> 4) | (cstate[i]<<4) ) & 0xff
+
+    out = [0] * 8
+    for i in range(8):
+        out[i] = (0x100 + phase3[i] - ctmp[i]) & 0xff
+
+    return out
